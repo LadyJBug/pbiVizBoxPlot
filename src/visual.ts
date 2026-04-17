@@ -4,13 +4,20 @@
  *  Copyright (c) LadyJBug
  *  MIT License
  *
- *  A sleek Box Plot custom visual for Power BI.
+ *  A sleek, interactive Box Plot custom visual for Power BI.
  *  Data roles:
  *    - Category  : Grouping field for the X-axis (optional)
  *    - Quartiles : Three measures in order → Q1, Median (Q2), Q3
  *    - Whiskers  : Two measures in order  → Lower whisker (Min), Upper whisker (Max)
  *    - Outliers  : One or more measures for individual outlier values
  *    - Sample Size: One measure for the sample count (N)
+ *
+ *  Interactivity:
+ *    - Click a box or outlier to cross-filter other visuals on the report page
+ *    - Ctrl/Cmd + click for multi-selection
+ *    - Click the background to clear the selection
+ *    - Right-click a box or outlier to open the Power BI context menu
+ *    - Non-selected groups are dimmed to visually indicate the active filter
  */
 "use strict";
 
@@ -29,7 +36,12 @@ import IVisualHost = powerbi.extensibility.visual.IVisualHost;
 
 import { VisualFormattingSettingsModel } from "./settings";
 
-// ─── Data model ─────────────────────────────────────────────────────────────
+// ─── Constants ───────────────────────────────────────────────────────────────
+
+const DIM_OPACITY = 0.2;
+const FULL_OPACITY = 1;
+
+// ─── Data model ──────────────────────────────────────────────────────────────
 
 interface BoxPlotDataPoint {
     category: string;
@@ -57,19 +69,28 @@ export class Visual implements IVisual {
     private formattingSettings: VisualFormattingSettingsModel;
     private formattingSettingsService: FormattingSettingsService;
 
+    // Track which selectionIds are currently active so we can apply dimming
+    private selectedIds: powerbi.visuals.ISelectionId[] = [];
+
     constructor(options: VisualConstructorOptions) {
         this.host = options.host;
         this.formattingSettingsService = new FormattingSettingsService();
         this.selectionManager = options.host.createSelectionManager();
 
-        // Root SVG
+        // Root SVG — clicking the background clears all selections
         this.svg = d3.select(options.element)
             .append("svg")
-            .classed("boxPlotSvg", true);
+            .classed("boxPlotSvg", true)
+            .on("click", () => {
+                this.selectionManager.clear().then(() => {
+                    this.selectedIds = [];
+                    this.syncSelectionOpacity();
+                });
+            });
 
         // Layer order: grid → plot → axes
         this.gridGroup = this.svg.append("g").classed("grid", true);
-        this.plotArea = this.svg.append("g").classed("plotArea", true);
+        this.plotArea  = this.svg.append("g").classed("plotArea", true);
         this.xAxisGroup = this.svg.append("g").classed("xAxis", true);
         this.yAxisGroup = this.svg.append("g").classed("yAxis", true);
 
@@ -80,7 +101,7 @@ export class Visual implements IVisual {
             .style("opacity", 0);
     }
 
-    // ─── Update ─────────────────────────────────────────────────────────────
+    // ─── Update ──────────────────────────────────────────────────────────────
 
     public update(options: VisualUpdateOptions) {
         const dataView: DataView = options.dataViews?.[0];
@@ -88,11 +109,11 @@ export class Visual implements IVisual {
             VisualFormattingSettingsModel, dataView
         );
 
-        const width = options.viewport.width;
+        const width  = options.viewport.width;
         const height = options.viewport.height;
 
         this.svg
-            .attr("width", width)
+            .attr("width",  width)
             .attr("height", height);
 
         // Clear previous render
@@ -115,7 +136,7 @@ export class Visual implements IVisual {
         this.renderBoxPlot(data, width, height);
     }
 
-    // ─── Parse data ─────────────────────────────────────────────────────────
+    // ─── Parse data ──────────────────────────────────────────────────────────
 
     private parseData(dataView: DataView): BoxPlotDataPoint[] {
         const categorical: DataViewCategorical = dataView.categorical;
@@ -157,17 +178,18 @@ export class Visual implements IVisual {
                 ? String(categories.values[i] ?? `Group ${i + 1}`)
                 : "All";
 
-            const selectionId = this.host
-                .createSelectionIdBuilder()
-                .withCategory(categories, i)
-                .createSelectionId();
+            const builder = this.host.createSelectionIdBuilder();
+            if (categories) {
+                builder.withCategory(categories, i);
+            }
+            const selectionId = builder.createSelectionId();
 
             dataPoints.push({
                 category: catLabel,
                 q1: q1 ?? low ?? 0,
                 median: median ?? ((q1 ?? 0) + (q3 ?? 0)) / 2,
                 q3: q3 ?? high ?? 0,
-                whiskerLow: low ?? q1 ?? 0,
+                whiskerLow:  low  ?? q1 ?? 0,
                 whiskerHigh: high ?? q3 ?? 0,
                 outliers,
                 sampleSize,
@@ -178,7 +200,7 @@ export class Visual implements IVisual {
         return dataPoints;
     }
 
-    // ─── Render box plot ─────────────────────────────────────────────────────
+    // ─── Render box plot ──────────────────────────────────────────────────────
 
     private renderBoxPlot(data: BoxPlotDataPoint[], width: number, height: number) {
         const settings = this.formattingSettings;
@@ -190,7 +212,7 @@ export class Visual implements IVisual {
             top: 20,
             right: 20,
             bottom: xa.show.value ? 50 : 10,
-            left: ya.show.value ? 55 : 10
+            left:   ya.show.value ? 55 : 10
         };
 
         const innerW = Math.max(width  - margin.left - margin.right,  10);
@@ -217,11 +239,11 @@ export class Visual implements IVisual {
             .range([0, innerW])
             .padding(0.3);
 
-        // ── Position main group ───────────────────────────────────────────
-        this.plotArea.attr("transform", `translate(${margin.left},${margin.top})`);
+        // ── Position main groups ──────────────────────────────────────────
+        this.plotArea.attr("transform",   `translate(${margin.left},${margin.top})`);
         this.xAxisGroup.attr("transform", `translate(${margin.left},${margin.top + innerH})`);
         this.yAxisGroup.attr("transform", `translate(${margin.left},${margin.top})`);
-        this.gridGroup.attr("transform", `translate(${margin.left},${margin.top})`);
+        this.gridGroup.attr("transform",  `translate(${margin.left},${margin.top})`);
 
         // ── Grid lines ────────────────────────────────────────────────────
         if (ya.gridLines.value) {
@@ -244,8 +266,8 @@ export class Visual implements IVisual {
                 .call(d3.axisBottom(xScale))
                 .call(g => g.select(".domain").attr("stroke", "#aaa"))
                 .call(g => g.selectAll("text")
-                    .style("font-size", `${xa.fontSize.value}px`)
-                    .style("fill", xa.fontColor.value.value)
+                    .style("font-size",   `${xa.fontSize.value}px`)
+                    .style("fill",        xa.fontColor.value.value)
                     .style("font-family", "Segoe UI, sans-serif")
                 );
         }
@@ -256,13 +278,13 @@ export class Visual implements IVisual {
                 .call(d3.axisLeft(yScale).ticks(6))
                 .call(g => g.select(".domain").attr("stroke", "#aaa"))
                 .call(g => g.selectAll("text")
-                    .style("font-size", `${ya.fontSize.value}px`)
-                    .style("fill", ya.fontColor.value.value)
+                    .style("font-size",   `${ya.fontSize.value}px`)
+                    .style("fill",        ya.fontColor.value.value)
                     .style("font-family", "Segoe UI, sans-serif")
                 );
         }
 
-        // ── Box plots ─────────────────────────────────────────────────────
+        // ── Visual settings ───────────────────────────────────────────────
         const boxColor     = bp.boxColor.value.value     || "#4472C4";
         const medianColor  = bp.medianColor.value.value  || "#FF0000";
         const whiskerColor = bp.whiskerColor.value.value || "#2E2E2E";
@@ -272,14 +294,22 @@ export class Visual implements IVisual {
 
         const tooltip = this.tooltip;
 
-        data.forEach(d => {
+        // ── Render one <g class="boxGroup"> per data point ────────────────
+        // Bind data so D3 can later select groups by datum for selection state
+        const groups = this.plotArea
+            .selectAll<SVGGElement, BoxPlotDataPoint>(".boxGroup")
+            .data(data, d => d.category)
+            .join("g")
+            .classed("boxGroup", true)
+            .attr("cursor", "pointer");
+
+        groups.each(function(d) {
+            const g    = d3.select(this);
             const bw   = xScale.bandwidth();
             const cx   = (xScale(d.category) ?? 0) + bw / 2;
             const capW = bw * 0.4;
 
-            const g = this.plotArea.append("g").classed("boxGroup", true);
-
-            // ── Whisker vertical line ─────────────────────────────────
+            // ── Whisker vertical line ──────────────────────────────────
             g.append("line")
                 .classed("whiskerLine", true)
                 .attr("x1", cx).attr("x2", cx)
@@ -288,45 +318,33 @@ export class Visual implements IVisual {
                 .attr("stroke", whiskerColor)
                 .attr("stroke-width", 1.5);
 
-            // ── Upper whisker cap ─────────────────────────────────────
-            g.append("line")
-                .classed("whiskerCap", true)
-                .attr("x1", cx - capW / 2).attr("x2", cx + capW / 2)
-                .attr("y1", yScale(d.whiskerHigh))
-                .attr("y2", yScale(d.whiskerHigh))
-                .attr("stroke", whiskerColor)
-                .attr("stroke-width", 1.5);
+            // ── Whisker caps ───────────────────────────────────────────
+            [d.whiskerHigh, d.whiskerLow].forEach(v => {
+                g.append("line")
+                    .classed("whiskerCap", true)
+                    .attr("x1", cx - capW / 2).attr("x2", cx + capW / 2)
+                    .attr("y1", yScale(v))     .attr("y2", yScale(v))
+                    .attr("stroke", whiskerColor)
+                    .attr("stroke-width", 1.5);
+            });
 
-            // ── Lower whisker cap ─────────────────────────────────────
-            g.append("line")
-                .classed("whiskerCap", true)
-                .attr("x1", cx - capW / 2).attr("x2", cx + capW / 2)
-                .attr("y1", yScale(d.whiskerLow))
-                .attr("y2", yScale(d.whiskerLow))
-                .attr("stroke", whiskerColor)
-                .attr("stroke-width", 1.5);
-
-            // ── IQR box (Q1 → Q3) ─────────────────────────────────────
-            const boxTop    = yScale(d.q3);
-            const boxBottom = yScale(d.q1);
-            const boxH      = Math.abs(boxBottom - boxTop);
+            // ── IQR box (Q1 → Q3) ──────────────────────────────────────
+            const boxTop = yScale(d.q3);
+            const boxH   = Math.abs(yScale(d.q1) - boxTop);
 
             g.append("rect")
                 .classed("iqrBox", true)
-                .attr("x", xScale(d.category) ?? 0)
-                .attr("y", boxTop)
-                .attr("width", bw)
+                .attr("x",      xScale(d.category) ?? 0)
+                .attr("y",      boxTop)
+                .attr("width",  bw)
                 .attr("height", Math.max(boxH, 1))
-                .attr("fill", boxColor)
+                .attr("fill",         boxColor)
                 .attr("fill-opacity", boxOpacity)
-                .attr("stroke", boxColor)
+                .attr("stroke",       boxColor)
                 .attr("stroke-width", 1.5)
-                .attr("rx", 2)
-                .on("mouseover", (event: MouseEvent) => this.showTooltip(event, d, tooltip))
-                .on("mousemove", (event: MouseEvent) => this.moveTooltip(event, tooltip))
-                .on("mouseout",  ()                  => this.hideTooltip(tooltip));
+                .attr("rx", 2);
 
-            // ── Median line ───────────────────────────────────────────
+            // ── Median line ────────────────────────────────────────────
             g.append("line")
                 .classed("medianLine", true)
                 .attr("x1", xScale(d.category) ?? 0)
@@ -336,38 +354,86 @@ export class Visual implements IVisual {
                 .attr("stroke", medianColor)
                 .attr("stroke-width", 2.5);
 
-            // ── Outlier dots ──────────────────────────────────────────
+            // ── Outlier dots ───────────────────────────────────────────
             d.outliers.forEach(ov => {
                 g.append("circle")
                     .classed("outlierDot", true)
                     .attr("cx", cx)
                     .attr("cy", yScale(ov))
-                    .attr("r", outlierR)
-                    .attr("fill", outlierColor)
+                    .attr("r",  outlierR)
+                    .attr("fill",         outlierColor)
                     .attr("fill-opacity", 0.8)
-                    .attr("stroke", outlierColor)
-                    .attr("stroke-width", 1)
-                    .on("mouseover", (event: MouseEvent) => this.showTooltip(event, d, tooltip, ov))
-                    .on("mousemove", (event: MouseEvent) => this.moveTooltip(event, tooltip))
-                    .on("mouseout",  ()                  => this.hideTooltip(tooltip));
+                    .attr("stroke",       outlierColor)
+                    .attr("stroke-width", 1);
             });
 
-            // ── Sample size label ─────────────────────────────────────
+            // ── Sample size label ──────────────────────────────────────
             if (bp.showSampleSize.value && d.sampleSize !== null) {
                 g.append("text")
                     .classed("sampleLabel", true)
                     .attr("x", cx)
                     .attr("y", yScale(d.whiskerHigh) - 6)
                     .attr("text-anchor", "middle")
-                    .style("font-size", "10px")
-                    .style("fill", "#555")
+                    .style("font-size",   "10px")
+                    .style("fill",        "#555")
                     .style("font-family", "Segoe UI, sans-serif")
-                    .text(`n=${this.formatNumber(d.sampleSize)}`);
+                    .text(`n=${Visual.fmtNum(d.sampleSize)}`);
             }
         });
+
+        // ── Attach interaction handlers to each group ─────────────────────
+        groups
+            .on("mouseover", (event: MouseEvent, d) => {
+                this.showTooltip(event, d, tooltip);
+            })
+            .on("mousemove", (event: MouseEvent) => {
+                this.moveTooltip(event, tooltip);
+            })
+            .on("mouseout", () => {
+                this.hideTooltip(tooltip);
+            })
+            .on("click", (event: MouseEvent, d) => {
+                // Stop propagation so the SVG background handler doesn't clear immediately
+                event.stopPropagation();
+                const multiSelect = event.ctrlKey || event.metaKey;
+                this.selectionManager.select(d.selectionId, multiSelect)
+                    .then((ids: powerbi.visuals.ISelectionId[]) => {
+                        this.selectedIds = ids;
+                        this.syncSelectionOpacity();
+                    });
+            })
+            .on("contextmenu", (event: MouseEvent, d) => {
+                event.preventDefault();
+                event.stopPropagation();
+                this.selectionManager.showContextMenu(d.selectionId, {
+                    x: event.clientX,
+                    y: event.clientY
+                });
+            });
+
+        // Apply initial selection dimming (e.g. after a data refresh)
+        this.syncSelectionOpacity();
     }
 
-    // ─── Tooltip helpers ─────────────────────────────────────────────────────
+    // ─── Selection helpers ────────────────────────────────────────────────────
+
+    /**
+     * Dim groups that are not part of the current selection.
+     * When nothing is selected every group is shown at full opacity.
+     */
+    private syncSelectionOpacity() {
+        const selectedIds = this.selectedIds;
+        this.plotArea
+            .selectAll<SVGGElement, BoxPlotDataPoint>(".boxGroup")
+            .style("opacity", (d: BoxPlotDataPoint) => {
+                if (!selectedIds.length) return FULL_OPACITY;
+                return selectedIds.some(id => id.equals(d.selectionId))
+                    ? FULL_OPACITY
+                    : DIM_OPACITY;
+            });
+    }
+
+    // ─── Tooltip helpers ──────────────────────────────────────────────────────
 
     private showTooltip(
         event: MouseEvent,
@@ -400,22 +466,22 @@ export class Visual implements IVisual {
         };
 
         if (outlierValue !== undefined) {
-            addRow("Outlier", this.formatNumber(outlierValue));
+            addRow("Outlier", Visual.fmtNum(outlierValue));
         } else {
-            addRow("Max (Whisker)", this.formatNumber(d.whiskerHigh));
-            addRow("Q3",           this.formatNumber(d.q3));
-            addRow("Median",       this.formatNumber(d.median));
-            addRow("Q1",           this.formatNumber(d.q1));
-            addRow("Min (Whisker)", this.formatNumber(d.whiskerLow));
+            addRow("Max (Whisker)",  Visual.fmtNum(d.whiskerHigh));
+            addRow("Q3",             Visual.fmtNum(d.q3));
+            addRow("Median",         Visual.fmtNum(d.median));
+            addRow("Q1",             Visual.fmtNum(d.q1));
+            addRow("Min (Whisker)",  Visual.fmtNum(d.whiskerLow));
         }
         if (d.sampleSize !== null) {
-            addRow("Sample Size (n)", this.formatNumber(d.sampleSize));
+            addRow("Sample Size (n)", Visual.fmtNum(d.sampleSize));
         }
 
         tooltip
             .style("opacity", 1)
-            .style("left",  `${event.offsetX + 12}px`)
-            .style("top",   `${event.offsetY - 28}px`);
+            .style("left", `${event.offsetX + 12}px`)
+            .style("top",  `${event.offsetY - 28}px`);
     }
 
     private moveTooltip(event: MouseEvent, tooltip: d3.Selection<HTMLDivElement, unknown, null, undefined>) {
@@ -428,7 +494,7 @@ export class Visual implements IVisual {
         tooltip.style("opacity", 0);
     }
 
-    // ─── Empty state ─────────────────────────────────────────────────────────
+    // ─── Empty state ──────────────────────────────────────────────────────────
 
     private renderEmptyState(width: number, height: number) {
         this.plotArea
@@ -437,13 +503,13 @@ export class Visual implements IVisual {
             .attr("y", height / 2)
             .attr("text-anchor", "middle")
             .attr("dominant-baseline", "middle")
-            .style("font-size", "14px")
-            .style("fill", "#999")
+            .style("font-size",   "14px")
+            .style("fill",        "#999")
             .style("font-family", "Segoe UI, sans-serif")
             .text("Add Quartiles and Whiskers data to display the Box Plot");
     }
 
-    // ─── Formatting model ────────────────────────────────────────────────────
+    // ─── Formatting model ─────────────────────────────────────────────────────
 
     public getFormattingModel(): powerbi.visuals.FormattingModel {
         return this.formattingSettingsService.buildFormattingModel(this.formattingSettings);
@@ -457,7 +523,7 @@ export class Visual implements IVisual {
         return isNaN(n) ? null : n;
     }
 
-    private formatNumber(value: number): string {
+    private static fmtNum(value: number): string {
         if (Math.abs(value) >= 1e6)  return d3.format(".3s")(value);
         if (Math.abs(value) >= 1000) return d3.format(",.0f")(value);
         return d3.format(".2f")(value);
