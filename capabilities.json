@@ -1,0 +1,175 @@
+{
+    "dataRoles": [
+        {
+            "displayName": "Category",
+            "description": "Group or category field for the X-axis (optional). Add a category to display multiple side-by-side box plots.",
+            "name": "category",
+            "kind": "Grouping"
+        },
+        {
+            "displayName": "Quartiles (Q1, Median, Q3)",
+            "description": "Add exactly three measures in order: Q1, Median (Q2), Q3. These define the box boundaries.",
+            "name": "quartiles",
+            "kind": "Measure"
+        },
+        {
+            "displayName": "Whiskers (Min, Max)",
+            "description": "Add exactly two measures in order: Lower Whisker (Min) and Upper Whisker (Max).",
+            "name": "whiskers",
+            "kind": "Measure"
+        },
+        {
+            "displayName": "Outliers",
+            "description": "Add one or more measures representing individual outlier data points.",
+            "name": "outliers",
+            "kind": "Measure"
+        },
+        {
+            "displayName": "Sample Size",
+            "description": "Add a measure representing the sample count (N) for each group.",
+            "name": "sampleSize",
+            "kind": "Measure"
+        }
+    ],
+    "objects": {
+        "boxPlot": {
+            "properties": {
+                "boxColor": {
+                    "type": {
+                        "fill": {
+                            "solid": {
+                                "color": true
+                            }
+                        }
+                    }
+                },
+                "boxOpacity": {
+                    "type": {
+                        "numeric": true
+                    }
+                },
+                "medianColor": {
+                    "type": {
+                        "fill": {
+                            "solid": {
+                                "color": true
+                            }
+                        }
+                    }
+                },
+                "whiskerColor": {
+                    "type": {
+                        "fill": {
+                            "solid": {
+                                "color": true
+                            }
+                        }
+                    }
+                },
+                "outlierColor": {
+                    "type": {
+                        "fill": {
+                            "solid": {
+                                "color": true
+                            }
+                        }
+                    }
+                },
+                "outlierRadius": {
+                    "type": {
+                        "numeric": true
+                    }
+                },
+                "showSampleSize": {
+                    "type": {
+                        "bool": true
+                    }
+                }
+            }
+        },
+        "xAxis": {
+            "properties": {
+                "show": {
+                    "type": {
+                        "bool": true
+                    }
+                },
+                "fontSize": {
+                    "type": {
+                        "formatting": {
+                            "fontSize": true
+                        }
+                    }
+                },
+                "fontColor": {
+                    "type": {
+                        "fill": {
+                            "solid": {
+                                "color": true
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "yAxis": {
+            "properties": {
+                "show": {
+                    "type": {
+                        "bool": true
+                    }
+                },
+                "fontSize": {
+                    "type": {
+                        "formatting": {
+                            "fontSize": true
+                        }
+                    }
+                },
+                "fontColor": {
+                    "type": {
+                        "fill": {
+                            "solid": {
+                                "color": true
+                            }
+                        }
+                    }
+                },
+                "gridLines": {
+                    "type": {
+                        "bool": true
+                    }
+                }
+            }
+        }
+    },
+    "dataViewMappings": [
+        {
+            "conditions": [
+                {
+                    "category": { "max": 1 },
+                    "sampleSize": { "max": 1 }
+                }
+            ],
+            "categorical": {
+                "categories": {
+                    "for": {
+                        "in": "category"
+                    },
+                    "dataReductionAlgorithm": {
+                        "top": { "count": 100 }
+                    }
+                },
+                "values": {
+                    "select": [
+                        { "for": { "in": "quartiles" } },
+                        { "for": { "in": "whiskers" } },
+                        { "for": { "in": "outliers" } },
+                        { "for": { "in": "sampleSize" } }
+                    ]
+                }
+            }
+        }
+    ],
+    "privileges": []
+}

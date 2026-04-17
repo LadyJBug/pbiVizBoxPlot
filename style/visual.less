@@ -1,0 +1,98 @@
+/*
+ *  Box Plot Visual — styles
+ */
+
+.boxPlotSvg {
+    display: block;
+    overflow: visible;
+
+    .plotArea,
+    .xAxis,
+    .yAxis,
+    .grid {
+        transition: opacity 0.2s ease;
+    }
+
+    .iqrBox {
+        cursor: pointer;
+        transition: fill-opacity 0.15s ease;
+
+        &:hover {
+            fill-opacity: 0.9 !important;
+        }
+    }
+
+    .boxGroup {
+        transition: opacity 0.2s ease;
+    }
+
+    .medianLine {
+        pointer-events: none;
+    }
+
+    .whiskerLine,
+    .whiskerCap {
+        stroke-linecap: round;
+    }
+
+    .outlierDot {
+        cursor: pointer;
+        transition: r 0.15s ease;
+
+        &:hover {
+            r: 6;
+        }
+    }
+
+    .sampleLabel {
+        pointer-events: none;
+        user-select: none;
+    }
+
+    /* Axis styles */
+    .xAxis,
+    .yAxis {
+        .tick line {
+            stroke: #ccc;
+        }
+
+        .domain {
+            stroke: #aaa;
+        }
+    }
+
+    /* Grid */
+    .grid .tick line {
+        stroke: #e8e8e8;
+    }
+}
+
+/* Floating tooltip */
+.boxPlotTooltip {
+    position: absolute;
+    pointer-events: none;
+    background: rgba(30, 30, 30, 0.88);
+    color: #f0f0f0;
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-size: 12px;
+    font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+    line-height: 1.6;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+    max-width: 220px;
+    white-space: nowrap;
+    z-index: 9999;
+    transition: opacity 0.15s ease;
+
+    strong {
+        font-size: 13px;
+        display: block;
+        margin-bottom: 4px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+        padding-bottom: 3px;
+    }
+
+    .label {
+        color: #aaa;
+    }
+}

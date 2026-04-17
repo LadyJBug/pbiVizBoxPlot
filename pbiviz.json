@@ -1,0 +1,26 @@
+{
+    "visual": {
+        "name": "pbiVizBoxPlot",
+        "displayName": "Box Plot",
+        "guid": "pbiVizBoxPlotDE6D8193C3154B048316ACC3B9D2D07F",
+        "visualClassName": "Visual",
+        "version": "1.0.0.0",
+        "description": "A sleek Box Plot visual for Power BI with support for quartiles, whiskers, outliers, and sample size.",
+        "supportUrl": "https://github.com/LadyJBug/pbiVizBoxPlot",
+        "gitHubUrl": "https://github.com/LadyJBug/pbiVizBoxPlot"
+    },
+    "apiVersion": "5.3.0",
+    "author": {
+        "name": "LadyJBug",
+        "email": "ladyjbug@users.noreply.github.com"
+    },
+    "assets": {
+        "icon": "assets/icon.png"
+    },
+    "externalJS": null,
+    "style": "style/visual.less",
+    "capabilities": "capabilities.json",
+    "dependencies": null,
+    "stringResources": [],
+    "version": "1.0.0.0"
+}
